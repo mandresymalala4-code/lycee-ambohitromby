@@ -1,0 +1,26 @@
+# Secrets et configuration locale
+.env
+*.env.local
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+backend/db.sqlite3
+backend/*.sqlite3
+
+# Fichiers téléversés (photos, logo)
+backend/media/*
+!backend/media/.gitkeep
+
+# Node
+node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Système / éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

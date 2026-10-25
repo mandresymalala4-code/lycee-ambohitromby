@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, GraduationCap, Info, KeyRound, LogIn, ShieldCheck, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, Info, KeyRound, LogIn, ShieldCheck, UserPlus } from 'lucide-react';
 import { api, applyErrors, parseErr, toForm } from '../api';
 import { useAuth, useSettings } from '../context';
-import { Field, Logo, Spinner, SuccessCheck, useToast } from '../ui';
+import { Avatar, Field, Logo, Spinner, Stepper, SuccessCheck, useToast } from '../ui';
 import { rules } from '../validators';
 
 function Pw({ reg, error, label, ...p }) {
@@ -62,36 +62,91 @@ function Forgot({ go }) {
   );
 }
 
+const REG_STEPS = ['Identité', 'Coordonnées', 'Sécurité'];
+const REG_FIELDS = [['nom', 'prenom', 'date_naissance', 'sexe'], ['adresse', 'telephone', 'email', 'cin', 'matiere'], ['mot_de_passe', 'confirmation']];
+
 function Register({ go }) {
   const toast = useToast(); const [ok, setOk] = useState(false); const [disc, setDisc] = useState([]);
-  const { register, handleSubmit, getValues, setError, formState: { errors, isSubmitting } } = useForm();
+  const [step, setStep] = useState(0); const [dir, setDir] = useState(1);
+  const [photo, setPhoto] = useState(null); const [photoUrl, setPhotoUrl] = useState(null); const [photoErr, setPhotoErr] = useState('');
+  const [srv, setSrv] = useState({});   // erreurs renvoyées par le serveur (doublons, etc.), effacées dès que le champ est modifié
+  const { register, handleSubmit, trigger, watch, getValues, formState: { errors, isSubmitting } } = useForm({ shouldUnregister: false });
   useEffect(() => { api.get('/disciplines/').then((r) => setDisc(r.data)).catch(() => {}); }, []);
-  const submit = async (d) => {
-    const body = { ...d, photo: d.photo?.[0] };
-    try { await api.post('/auth/register-professeur/', toForm(body), { headers: { 'Content-Type': 'multipart/form-data' } }); setOk(true); }
-    catch (e) { toast.error(parseErr(e).message); applyErrors(e, setError); }
+  useEffect(() => { if (!photo) { setPhotoUrl(null); return undefined; } const u = URL.createObjectURL(photo); setPhotoUrl(u); return () => URL.revokeObjectURL(u); }, [photo]);
+
+  const R = (name, opts) => register(name, { ...opts, onChange: () => setSrv((x) => { if (!x[name]) return x; const { [name]: _omit, ...rest } = x; return rest; }) });
+  const err = (k) => errors[k]?.message || srv[k];
+
+  const next = async () => {
+    const okStep = await trigger(REG_FIELDS[step]);
+    if (!okStep || REG_FIELDS[step].some((f) => srv[f])) return;
+    setDir(1); setStep((s) => Math.min(s + 1, 2));
   };
+  const prev = () => { setDir(-1); setStep((s) => Math.max(s - 1, 0)); };
+
+  const submit = async (d) => {
+    const body = { ...d, photo };
+    try { await api.post('/auth/register-professeur/', toForm(body), { headers: { 'Content-Type': 'multipart/form-data' } }); setOk(true); }
+    catch (e) {
+      const p = parseErr(e); toast.error(p.message);
+      setSrv(p.champs);
+      const first = REG_FIELDS.findIndex((fs) => fs.some((f) => p.champs[f]) || (fs === REG_FIELDS[0] && p.champs.photo));
+      if (first >= 0) { setDir(first < step ? -1 : 1); setStep(first); }
+    }
+  };
+  const onFile = (e) => {
+    const f = e.target.files[0];
+    const r = rules.photo(f ? [f] : null);
+    if (r !== true) { setPhotoErr(r); setPhoto(null); e.target.value = ''; } else { setPhotoErr(''); setPhoto(f || null); }
+  };
+
   if (ok) return <div className="stack" style={{ alignItems: 'center', textAlign: 'center' }}><SuccessCheck /><h2>Compte créé</h2><p className="muted">Votre compte sera actif après validation par l'administrateur.</p><button className="btn btn-primary" onClick={() => go('login')}>Retour à la connexion</button></div>;
-  const E = errors;
+
+  const panels = [
+    <div key="0" className="form-grid">
+      <Field label="Nom" required error={err('nom')} hint="En majuscules"><input className="input" autoFocus {...R('nom', { validate: rules.nom })} /></Field>
+      <Field label="Prénoms" required error={err('prenom')}><input className="input" {...R('prenom', { validate: rules.prenom })} /></Field>
+      <Field label="Date de naissance" required error={err('date_naissance')}><input type="date" className="input" {...R('date_naissance', { validate: rules.naissanceAdulte(21) })} /></Field>
+      <Field label="Sexe" required error={err('sexe')}><select className="input" {...R('sexe', { required: 'Veuillez sélectionner le sexe.' })}><option value="">Choisir…</option><option>Homme</option><option>Femme</option></select></Field>
+      <div className="photo-drop full">
+        {photoUrl ? <img className="avatar" src={photoUrl} width={56} height={56} alt="" /> : <Avatar name={`${watch('nom') || ''} ${watch('prenom') || ''}`} size={56} />}
+        <Field label="Photo (facultatif)" error={photoErr || srv.photo} hint={photo ? `Photo sélectionnée : ${photo.name}` : 'JPG ou PNG, 2 Mo maximum'}><input type="file" accept=".jpg,.jpeg,.png" className="input" onChange={onFile} /></Field>
+      </div>
+    </div>,
+    <div key="1" className="form-grid">
+      <Field label="Adresse" required error={err('adresse')} className="full"><input className="input" autoFocus {...R('adresse', { validate: rules.adresse })} /></Field>
+      <Field label="Téléphone" required error={err('telephone')}><input className="input" placeholder="034 00 000 00" {...R('telephone', { validate: rules.tel })} /></Field>
+      <Field label="Email" required error={err('email')}><input type="email" className="input" {...R('email', { validate: rules.email })} /></Field>
+      <Field label="CIN (14 chiffres)" required error={err('cin')}><input className="input" inputMode="numeric" {...R('cin', { validate: rules.cin })} /></Field>
+      <Field label="Matière enseignée" required error={err('matiere')}><input className="input" list="disc" {...R('matiere', { validate: rules.obligatoire })} /><datalist id="disc">{disc.map((d) => <option key={d.id} value={d.nom} />)}</datalist></Field>
+    </div>,
+    <div key="2" className="stack">
+      <div className="form-grid">
+        <Pw label="Mot de passe" reg={R('mot_de_passe', { validate: rules.mdp })} error={err('mot_de_passe')} autoFocus />
+        <Pw label="Confirmation" reg={R('confirmation', { validate: (v) => v === getValues('mot_de_passe') || 'Les mots de passe ne correspondent pas.' })} error={err('confirmation')} />
+      </div>
+      <p className="field-hint">Au moins 8 caractères, avec des lettres et des chiffres.</p>
+      <div className="card" style={{ background: 'var(--surface-2)', boxShadow: 'none' }}>
+        <h3>Récapitulatif</h3>
+        <dl className="kv"><dt>Nom</dt><dd>{watch('nom')} {watch('prenom')}</dd><dt>Email</dt><dd>{watch('email')}</dd><dt>Téléphone</dt><dd>{watch('telephone')}</dd><dt>Matière</dt><dd>{watch('matiere')}</dd></dl>
+      </div>
+    </div>,
+  ];
+
   return (
-    <form onSubmit={handleSubmit(submit)} noValidate>
+    <form onSubmit={(e) => { e.preventDefault(); if (step < 2) next(); else handleSubmit(submit)(e); }} noValidate>
       <button type="button" className="btn btn-ghost btn-sm" onClick={() => go('login')} style={{ marginBottom: 10 }}><ArrowLeft size={14} />Retour</button>
       <h2>Créer un compte professeur</h2><p className="muted mb">Votre compte sera validé par l'administrateur avant activation.</p>
-      <div className="form-grid">
-        <Field label="Nom" required error={E.nom?.message} hint="En majuscules"><input className="input" {...register('nom', { validate: rules.nom })} /></Field>
-        <Field label="Prénoms" required error={E.prenom?.message}><input className="input" {...register('prenom', { validate: rules.prenom })} /></Field>
-        <Field label="Date de naissance" required error={E.date_naissance?.message}><input type="date" className="input" {...register('date_naissance', { validate: rules.naissanceAdulte(21) })} /></Field>
-        <Field label="Sexe" required error={E.sexe?.message}><select className="input" {...register('sexe', { required: 'Veuillez sélectionner le sexe.' })}><option value="">Choisir…</option><option>Homme</option><option>Femme</option></select></Field>
-        <Field label="Adresse" required error={E.adresse?.message} className="full"><input className="input" {...register('adresse', { validate: rules.adresse })} /></Field>
-        <Field label="Téléphone" required error={E.telephone?.message}><input className="input" placeholder="034 00 000 00" {...register('telephone', { validate: rules.tel })} /></Field>
-        <Field label="Email" required error={E.email?.message}><input type="email" className="input" {...register('email', { validate: rules.email })} /></Field>
-        <Field label="CIN (14 chiffres)" required error={E.cin?.message}><input className="input" inputMode="numeric" {...register('cin', { validate: rules.cin })} /></Field>
-        <Field label="Matière enseignée" required error={E.matiere?.message}><input className="input" list="disc" {...register('matiere', { validate: rules.obligatoire })} /><datalist id="disc">{disc.map((d) => <option key={d.id} value={d.nom} />)}</datalist></Field>
-        <Pw label="Mot de passe" reg={register('mot_de_passe', { validate: rules.mdp })} error={E.mot_de_passe?.message} />
-        <Pw label="Confirmation" reg={register('confirmation', { validate: (v) => v === getValues('mot_de_passe') || 'Les mots de passe ne correspondent pas.' })} error={E.confirmation?.message} />
-        <Field label="Photo (facultatif)" error={E.photo?.message} className="full" hint="JPG ou PNG, 2 Mo maximum"><input type="file" accept=".jpg,.jpeg,.png" className="input" {...register('photo', { validate: rules.photo })} /></Field>
+      <Stepper steps={REG_STEPS} current={step} />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={step} initial={{ opacity: 0, x: 28 * dir }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 * dir }} transition={{ duration: .2 }}>{panels[step]}</motion.div>
+      </AnimatePresence>
+      <div className="row mt" style={{ justifyContent: 'space-between' }}>
+        {step > 0 ? <button type="button" className="btn btn-ghost" onClick={prev}><ArrowLeft size={16} />Précédent</button> : <span />}
+        {step < 2
+          ? <button type="submit" className="btn btn-primary">Suivant<ArrowRight size={16} /></button>
+          : <button className="btn btn-ok" disabled={isSubmitting}>{isSubmitting && <Spinner size={14} />}Créer mon compte</button>}
       </div>
-      <button className="btn btn-primary btn-block mt" disabled={isSubmitting}>{isSubmitting && <Spinner size={14} />}Créer mon compte</button>
     </form>
   );
 }

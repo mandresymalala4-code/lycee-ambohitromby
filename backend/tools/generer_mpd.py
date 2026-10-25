@@ -25,8 +25,29 @@ from reportlab.lib.units import cm  # noqa: E402
 from reportlab.pdfgen import canvas  # noqa: E402
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak  # noqa: E402
 
+LIGHT = dict(bg='#FFFFFF', ink='#0F172A', mut='#475569', mut2='#64748B', line='#CBD5E1', row1='#FFFFFF', row2='#F8FAFC', head='#E2E8F0', box='#FFFFFF',
+             trace='#CBD5E1', badge='#1E3A8A', title='#1E3A8A', alt='#DBEAFE')
+NIGHT = dict(bg='#0B1220', ink='#E5EDFA', mut='#9FB0CC', mut2='#8394B3', line='#2A3A5C', row1='#111A2E', row2='#16223A', head='#1D2D4D', box='#111A2E',
+             trace='#3A4A6E', badge='#93C5FD', title='#93C5FD', alt='#1D2D4D')
+PAL = dict(LIGHT)
+NUIT = False
+
+
+def K(k):
+    return colors.HexColor(PAL[k])
+
+
+def set_theme(nuit):
+    global PAL, NUIT, COUL
+    NUIT = nuit
+    PAL = dict(NIGHT if nuit else LIGHT)
+    COUL = dict(COUL_N if nuit else COUL_L)
+
+
 APPS = ['comptes', 'scolarite', 'absences', 'notes']
-COUL = {'comptes': '#1E3A8A', 'scolarite': '#15803D', 'absences': '#B45309', 'notes': '#6D28D9'}
+COUL_L = {'comptes': '#1E3A8A', 'scolarite': '#15803D', 'absences': '#B45309', 'notes': '#6D28D9'}
+COUL_N = {'comptes': '#3B82F6', 'scolarite': '#22C55E', 'absences': '#F59E0B', 'notes': '#8B5CF6'}
+COUL = dict(COUL_L)
 DESC = {
     'utilisateur': "Comptes de connexion (administrateurs et professeurs), état du compte, thème, verrouillage.",
     'discipline': "Référentiel des matières enseignables (Mathématiques, Français…).",
@@ -128,15 +149,16 @@ def diagramme(infos, app_de):
     buf = io.BytesIO()
     W, H = landscape(A3)
     c = canvas.Canvas(buf, pagesize=(W, H))
-    c.setFillColor(colors.HexColor('#0F172A')); c.setFont('Helvetica-Bold', 20)
+    c.setFillColor(K('bg')); c.rect(0, 0, W, H, fill=1, stroke=0)
+    c.setFillColor(K('ink')); c.setFont('Helvetica-Bold', 20)
     c.drawString(30, H - 34, 'MPD — Diagramme relationnel · Lycée Ambohitromby')
-    c.setFont('Helvetica', 9.5); c.setFillColor(colors.HexColor('#475569'))
+    c.setFont('Helvetica', 9.5); c.setFillColor(K('mut'))
     c.drawString(30, H - 50, 'Seules les colonnes clés sont représentées (PK, FK, UQ). Le détail complet figure dans le dictionnaire de données (pages suivantes).')
     # légende
     lx = W - 330
     for k, a in enumerate(APPS):
         c.setFillColor(colors.HexColor(COUL[a])); c.roundRect(lx + k * 80, H - 52, 12, 12, 3, fill=1, stroke=0)
-        c.setFillColor(colors.HexColor('#0F172A')); c.setFont('Helvetica', 9); c.drawString(lx + k * 80 + 16, H - 49, a)
+        c.setFillColor(K('ink')); c.setFont('Helvetica', 9); c.drawString(lx + k * 80 + 16, H - 49, a)
     box = {}
     for i in infos:
         t = i['table']
@@ -155,39 +177,39 @@ def diagramme(infos, app_de):
     TRACE = {'saisi_par_id', 'enregistre_par_id', 'valide_par_id', 'utilisateur_id_audit'}
     for (enfant, parent, col, un_un) in fks(infos):
         if enfant == parent:
-            b = box[enfant]; c.setStrokeColor(colors.HexColor('#94A3B8')); c.setLineWidth(1.1); c.setDash(3, 2)
+            b = box[enfant]; c.setStrokeColor(K('mut2')); c.setLineWidth(1.1); c.setDash(3, 2)
             c.line(b[0], b[1] + b[3] - 12, b[0] - 14, b[1] + b[3] - 12); c.line(b[0] - 14, b[1] + b[3] - 12, b[0] - 14, b[1] + b[3] - 30); c.line(b[0] - 14, b[1] + b[3] - 30, b[0], b[1] + b[3] - 30); c.setDash()
             continue
         bc, bp = box[enfant], box[parent]
         x1, y1 = bord(bc, *centre(bp)); x2, y2 = bord(bp, *centre(bc))
         trace = parent == 'utilisateur' and enfant != 'professeur'
-        c.setStrokeColor(colors.HexColor('#CBD5E1' if trace else '#64748B')); c.setLineWidth(.9 if trace else 1.1)
+        c.setStrokeColor(K('trace' if trace else 'mut2')); c.setLineWidth(.9 if trace else 1.1)
         if trace: c.setDash(4, 3)
         c.line(x1, y1, x2, y2); c.setDash()
-        c.setFillColor(colors.HexColor('#1E3A8A')); c.setFont('Helvetica-Bold', 8)
+        c.setFillColor(K('badge')); c.setFont('Helvetica-Bold', 8)
         def lab(x, y, tx, ox, oy):
-            c.setFillColor(colors.white); c.circle(x + ox, y + oy, 6, fill=1, stroke=0)
-            c.setFillColor(colors.HexColor('#1E3A8A')); c.drawCentredString(x + ox, y + oy - 3, tx)
+            c.setFillColor(K('bg')); c.circle(x + ox, y + oy, 6, fill=1, stroke=0)
+            c.setFillColor(K('badge')); c.drawCentredString(x + ox, y + oy - 3, tx)
         ux = (x2 - x1); uy = (y2 - y1); n = (ux ** 2 + uy ** 2) ** .5 or 1
         lab(x1, y1, '1' if un_un else 'N', ux / n * 12, uy / n * 12)
         lab(x2, y2, '1', -ux / n * 12, -uy / n * 12)
     # tables
     for i in infos:
         t = i['table']; x, y, w, h = box[t]; col = colors.HexColor(COUL[app_de[t]])
-        c.setFillColor(colors.Color(0, 0, 0, alpha=.07)); c.roundRect(x + 2.5, y - 2.5, w, h, 6, fill=1, stroke=0)
-        c.setFillColor(colors.white); c.setStrokeColor(col); c.setLineWidth(1.3); c.roundRect(x, y, w, h, 6, fill=1, stroke=1)
+        c.setFillColor(colors.Color(0, 0, 0, alpha=.35 if NUIT else .07)); c.roundRect(x + 2.5, y - 2.5, w, h, 6, fill=1, stroke=0)
+        c.setFillColor(K('box')); c.setStrokeColor(col); c.setLineWidth(1.3); c.roundRect(x, y, w, h, 6, fill=1, stroke=1)
         c.setFillColor(col); c.roundRect(x, y + h - HH, w, HH, 6, fill=1, stroke=0); c.rect(x, y + h - HH, w, HH / 2, fill=1, stroke=0)
         c.setFillColor(colors.white); c.setFont('Helvetica-Bold', 10); c.drawString(x + 8, y + h - 13.5, t)
         cles = [z for z in i['cols'] if z['flags']]; yy = y + h - HH - RH + 2
         for z in cles:
-            c.setFillColor(colors.HexColor('#0F172A')); c.setFont('Helvetica-Bold' if 'PK' in z['flags'] else 'Helvetica', 8)
-            c.drawString(x + 8, yy, z['nom']); c.setFont('Helvetica', 6.8); c.setFillColor(colors.HexColor('#64748B'))
+            c.setFillColor(K('ink')); c.setFont('Helvetica-Bold' if 'PK' in z['flags'] else 'Helvetica', 8)
+            c.drawString(x + 8, yy, z['nom']); c.setFont('Helvetica', 6.8); c.setFillColor(K('mut2'))
             c.drawRightString(x + w - 8, yy, ' '.join(z['flags']) + ' · ' + z['type'][:14])
             yy -= RH
         rest = len(i['cols']) - len(cles)
         if rest:
-            c.setFont('Helvetica-Oblique', 7.5); c.setFillColor(colors.HexColor('#64748B')); c.drawString(x + 8, yy, f'+ {rest} autre(s) colonne(s)')
-    c.setFont('Helvetica', 8); c.setFillColor(colors.HexColor('#64748B'))
+            c.setFont('Helvetica-Oblique', 7.5); c.setFillColor(K('mut2')); c.drawString(x + 8, yy, f'+ {rest} autre(s) colonne(s)')
+    c.setFont('Helvetica', 8); c.setFillColor(K('mut2'))
     c.drawString(30, 18, 'Notation : 1 = côté parent (clé référencée) · N = côté enfant (clé étrangère) · pointillés = liens de traçabilité vers utilisateur (saisi_par, enregistre_par, valide_par) · SGBD cible : MariaDB / MySQL (InnoDB, utf8mb4)')
     c.showPage(); c.save()
     return buf.getvalue()
@@ -196,11 +218,11 @@ def diagramme(infos, app_de):
 # ---------------- couverture + dictionnaire (A4) ----------------
 def en_tete(c, doc):
     W, H = A4
-    c.saveState(); c.setFont('Helvetica-Bold', 9); c.setFillColor(colors.HexColor('#1E3A8A'))
+    c.saveState(); c.setFillColor(K('bg')); c.rect(0, 0, W, H, fill=1, stroke=0); c.setFont('Helvetica-Bold', 9); c.setFillColor(K('title'))
     if doc.page > 1:
-        c.drawString(1.8 * cm, H - 1.3 * cm, 'MPD · Lycée Ambohitromby'); c.setStrokeColor(colors.HexColor('#1E3A8A')); c.setLineWidth(.8)
+        c.drawString(1.8 * cm, H - 1.3 * cm, 'MPD · Lycée Ambohitromby'); c.setStrokeColor(K('title')); c.setLineWidth(.8)
         c.line(1.8 * cm, H - 1.5 * cm, W - 1.8 * cm, H - 1.5 * cm)
-    c.setFont('Helvetica', 8); c.setFillColor(colors.HexColor('#64748B'))
+    c.setFont('Helvetica', 8); c.setFillColor(K('mut2'))
     c.drawRightString(W - 1.8 * cm, 1.0 * cm, f'Page {doc.page + 2}'); c.drawString(1.8 * cm, 1.0 * cm, f'Généré le {datetime.date.today():%d/%m/%Y}')
     c.restoreState()
 
@@ -224,11 +246,11 @@ def dictionnaire(infos, app_de):
     buf = io.BytesIO(); W, H = A4
     doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=1.8 * cm, rightMargin=1.8 * cm, topMargin=2.0 * cm, bottomMargin=1.6 * cm, title='MPD Lycée Ambohitromby')
     doc.addPageTemplates([PageTemplate(id='p', frames=[Frame(1.8 * cm, 1.6 * cm, W - 3.6 * cm, H - 3.6 * cm, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)], onPage=en_tete)])
-    h1 = ParagraphStyle('h1', fontName='Helvetica-Bold', fontSize=17, textColor=colors.HexColor('#1E3A8A'), spaceAfter=8)
+    h1 = ParagraphStyle('h1', fontName='Helvetica-Bold', fontSize=17, textColor=K('title'), spaceAfter=8)
     h2 = ParagraphStyle('h2', fontName='Helvetica-Bold', fontSize=11.5, textColor=colors.white, leading=14)
-    n = ParagraphStyle('n', fontName='Helvetica', fontSize=8.6, leading=11)
-    s = ParagraphStyle('s', fontName='Helvetica', fontSize=7.6, leading=9.5)
-    sb = ParagraphStyle('sb', fontName='Helvetica-Bold', fontSize=7.6, leading=9.5)
+    n = ParagraphStyle('n', fontName='Helvetica', fontSize=8.6, leading=11, textColor=K('ink'))
+    s = ParagraphStyle('s', fontName='Helvetica', fontSize=7.6, leading=9.5, textColor=K('ink'))
+    sb = ParagraphStyle('sb', fontName='Helvetica-Bold', fontSize=7.6, leading=9.5, textColor=K('ink'))
     esc = lambda x: str(x).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     st = [Paragraph('1. Présentation', h1),
           Paragraph("Ce document décrit la structure physique de la base de données <b>lycee_ambohitromby</b> : tables, colonnes, types, clés primaires (PK), clés étrangères (FK), contraintes d’unicité (UQ), contraintes de validité (CHECK) et index. "
@@ -237,18 +259,18 @@ def dictionnaire(infos, app_de):
                     "Les tables techniques de Django (auth_*, django_*, token_blacklist_*) ne sont pas détaillées.", n), Spacer(1, 10)]
     t = [[Paragraph('<b>Table</b>', s), Paragraph('<b>Module</b>', s), Paragraph('<b>Rôle</b>', s)]] + [[Paragraph(i['table'], s), Paragraph(app_de[i['table']], s), Paragraph(esc(DESC[i['table']]), s)] for i in infos]
     tb = Table(t, colWidths=[3.6 * cm, 2.2 * cm, 11.6 * cm], repeatRows=1)
-    tb.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E2E8F0')), ('GRID', (0, 0), (-1, -1), .4, colors.HexColor('#CBD5E1')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
+    tb.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), K('head')), ('GRID', (0, 0), (-1, -1), .4, K('line')), ('TEXTCOLOR', (0, 0), (-1, -1), K('ink')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
     st += [tb, PageBreak(), Paragraph('2. Dictionnaire de données', h1)]
     for i in infos:
         col = colors.HexColor(COUL[app_de[i['table']]])
-        head = Table([[Paragraph(f"{i['table']}  <font size=8 color='#DBEAFE'>· module {app_de[i['table']]}</font>", h2)]], colWidths=[W - 3.6 * cm])
+        head = Table([[Paragraph(f"{i['table']}  <font size=8 color='#E0E7FF'>· module {app_de[i['table']]}</font>", h2)]], colWidths=[W - 3.6 * cm])
         head.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), col), ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]))
         rows = [[Paragraph(f'<b>{x}</b>', s) for x in ('Colonne', 'Type', 'Null', 'Clés', 'Défaut', 'Référence')]]
         for z in i['cols']:
             rows.append([Paragraph(f"<b>{z['nom']}</b>" if 'PK' in z['flags'] else z['nom'], s), Paragraph(esc(z['type']), s), z['null'], Paragraph(' '.join(z['flags']), sb), Paragraph(esc(z['defaut']), s), Paragraph(esc(z['ref']), s)])
         tab = Table(rows, colWidths=[3.1 * cm, 2.9 * cm, 1.0 * cm, 1.3 * cm, 2.2 * cm, 6.9 * cm], repeatRows=1)
-        tab.setStyle(TableStyle([('FONT', (0, 0), (-1, -1), 'Helvetica', 7.6), ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E2E8F0')), ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#CBD5E1')),
-                                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2), ('ALIGN', (2, 0), (2, -1), 'CENTER')]))
+        tab.setStyle(TableStyle([('FONT', (0, 0), (-1, -1), 'Helvetica', 7.6), ('TEXTCOLOR', (0, 0), (-1, -1), K('ink')), ('BACKGROUND', (0, 0), (-1, 0), K('head')), ('GRID', (0, 0), (-1, -1), .35, K('line')),
+                                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [K('row1'), K('row2')]), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2), ('ALIGN', (2, 0), (2, -1), 'CENTER')]))
         extra = [Paragraph(f"<i>{esc(DESC[i['table']])}</i>", s), Spacer(1, 3)]
         lignes = []
         for u in i['uq']:
@@ -268,7 +290,8 @@ def dictionnaire(infos, app_de):
     return buf.getvalue()
 
 
-def main():
+def construire_pdf(nuit):
+    set_theme(nuit)
     ms = modeles()
     app_de = {m._meta.db_table: a for a, m in ms}
     ordre = list(POS)
@@ -279,14 +302,20 @@ def main():
     for part in (couverture(), diagramme(infos, app_de), dictionnaire(infos, app_de)):
         for p in PdfReader(io.BytesIO(part)).pages:
             w.add_page(p)
-    w.add_metadata({'/Title': 'MPD - Lycée Ambohitromby', '/Author': 'Lycée Ambohitromby'})
+    w.add_metadata({'/Title': 'MPD - Lycée Ambohitromby' + (' (mode nuit)' if nuit else ''), '/Author': 'Lycée Ambohitromby'})
+    return w, len(infos)
+
+
+def main():
     base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    for dest in (os.path.join(base, 'frontend', 'public', 'documentation', 'mpd.pdf'), os.path.join(base, 'documentation', 'MPD_Lycee_Ambohitromby.pdf')):
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, 'wb') as f:
-            w.write(f)
-        print('écrit :', dest)
-    print(f'{len(infos)} tables, {len(w.pages)} pages')
+    for nuit, nom_pub, nom_doc in ((False, 'mpd.pdf', 'MPD_Lycee_Ambohitromby.pdf'), (True, 'mpd-nuit.pdf', 'MPD_Lycee_Ambohitromby_nuit.pdf')):
+        w, n = construire_pdf(nuit)
+        for dest in (os.path.join(base, 'frontend', 'public', 'documentation', nom_pub), os.path.join(base, 'documentation', nom_doc)):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, 'wb') as f:
+                w.write(f)
+            print('écrit :', dest)
+        print(f'{n} tables, {len(w.pages)} pages ({"nuit" if nuit else "clair"})')
 
 
 if __name__ == '__main__':

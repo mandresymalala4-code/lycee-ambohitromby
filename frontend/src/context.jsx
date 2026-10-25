@@ -15,10 +15,13 @@ export function AuthProvider({ children }) {
   const toast = useToast();
   const idle = useRef();
 
-  const applyTheme = (t) => { document.documentElement.dataset.theme = t === 'SOMBRE' ? 'dark' : 'light'; };
+  const applyTheme = (t) => {
+    document.documentElement.dataset.theme = t === 'SOMBRE' ? 'dark' : 'light';
+    try { localStorage.setItem('lycee_theme', t === 'SOMBRE' ? 'SOMBRE' : 'CLAIR'); } catch { /* ignore */ }
+  };
 
   const clear = useCallback((msg) => {
-    tokens.clear(); setUser(null); applyTheme('CLAIR');
+    tokens.clear(); setUser(null);   // le thème choisi est conservé sur l'écran de connexion
     try { window.history.replaceState(null, '', '/'); window.history.pushState(null, '', '/'); } catch { /* ignore */ }
     if (msg) toast.info(msg);
   }, [toast]);

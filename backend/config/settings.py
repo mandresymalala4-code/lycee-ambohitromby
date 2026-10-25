@@ -6,6 +6,12 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
+if not (BASE_DIR / '.env').exists() and 'SECRET_KEY' not in os.environ:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        f"Fichier de configuration introuvable : {BASE_DIR / '.env'}. "
+        "Copiez .env.example (ou .env.production.example en hébergement) vers .env, puis renseignez-le.")
+
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-insecure-key-change-me')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 if not DEBUG and SECRET_KEY.startswith(('dev-insecure', 'lycee-ambohitromby-cle-secrete')):
@@ -48,7 +54,13 @@ else:
 # Compatibilité XAMPP : il fournit MariaDB 10.4, alors que Django 5.2 en annonce 10.5 minimum.
 # Les fonctions utilisées par l'application fonctionnent sur MariaDB 10.4 : on lève seulement ce blocage.
 if os.getenv('DB_ENGINE', 'mysql') != 'sqlite':
-    from django.db.backends.mysql.base import DatabaseWrapper as _MyWrapper
+    try:
+        from django.db.backends.mysql.base import DatabaseWrapper as _MyWrapper
+    except Exception as _e:  # mysqlclient absent
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "Le module MySQL (mysqlclient) n'est pas installé alors que DB_ENGINE vaut 'mysql'. "
+            "Hébergement gratuit : mettez DB_ENGINE=sqlite dans le fichier .env. En local : pip install -r requirements.txt.") from _e
     from django.db.utils import NotSupportedError as _NSE
     _orig_check = _MyWrapper.check_database_version_supported
 

@@ -96,6 +96,11 @@ documentation/  cahier des charges (.docx)
 Calculs : note trimestrielle = (DS + Examen) / 2 ; points = note × coefficient ; moyenne = total points / total coefficients ; rang avec ex æquo (1, 2, 2, 4) recalculé à chaque saisie.
 Autres choix : la liste « Élèves » est liée à l'inscription de l'année choisie (ses identifiants sont ceux des inscriptions) ; supprimer une inscription conserve le reçu avec le statut « Annulé » ; un trimestre clôturé reste modifiable par l'administrateur (journalisé).
 
+## Nouveautés de la version 1.2
+- **Mode nuit complet** : fond, tableaux, formulaires, graphiques, calendriers natifs, listes déroulantes, fenêtres, emploi du temps et écran de connexion sont entièrement sombres ; le choix est mémorisé (même avant connexion). Le MPD existe en **version nuit** (`mpd-nuit.pdf`), choisie automatiquement.
+- **Filtres alignés** (listes déroulantes compactes sur une ligne) dans Élèves, Notes, Absences, etc.
+- **Hébergement sans erreur** : `frontend/wrangler.jsonc` et `frontend/.env.production` fournis ; le message « Impossible de contacter le serveur » affiche l'adresse d'API utilisée ; script `scripts/diagnostic-pythonanywhere.sh` ; messages d'erreur de démarrage explicites (`.env` absent, `mysqlclient` manquant).
+
 ## Nouveautés de la version 1.1
 - **Sécurité de session / retour arrière** : en-têtes `Cache-Control: no-store, no-cache, must-revalidate` sur toute l'API et les PDF (middleware `comptes/middleware.py`) et balises meta dans `index.html` ; après déconnexion, la flèche « Retour » du navigateur ne ramène plus sur une page protégée (historique verrouillé avec `history.pushState`, contrôle au retour depuis le cache du navigateur, déconnexion synchronisée entre onglets) ; la déconnexion **invalide côté serveur** le jeton de rafraîchissement (liste noire) ; jeton expiré ou invalide = retour automatique à la connexion.
 - **Design et animations** : police Inter, nouvelle échelle de typographie, ombres et profondeur, navigation à pastille animée, barre de progression entre les pages, apparition progressive des blocs, micro-interactions (boutons, cartes, icônes), fenêtres et toasts adoucis, écran de connexion animé. Les animations respectent `prefers-reduced-motion`.
@@ -103,7 +108,7 @@ Autres choix : la liste « Élèves » est liée à l'inscription de l'année ch
 - **Bouton « À propos »** (barre du haut et menu latéral) : fenêtre avec le **MPD (PDF)** intégré, boutons *Agrandir*, *Ouvrir dans un onglet* et *Télécharger*, et onglet « Application ».
 
 ### Le PDF du MPD
-Le fichier affiché est `frontend/public/documentation/mpd.pdf` (copie dans `documentation/MPD_Lycee_Ambohitromby.pdf`). Il a été **généré automatiquement depuis les modèles** (diagramme relationnel + dictionnaire de données de 20 tables).
+Le fichier affiché est `frontend/public/documentation/mpd.pdf` (copie dans `documentation/MPD_Lycee_Ambohitromby.pdf`). Il a été **généré automatiquement depuis les modèles** (versions claire `mpd.pdf` et nuit `mpd-nuit.pdf`) (diagramme relationnel + dictionnaire de données de 20 tables).
 - **Pour utiliser votre propre PDF** : remplacez simplement `frontend/public/documentation/mpd.pdf` par votre fichier (même nom) ; rien d'autre à modifier.
 - **Pour régénérer le MPD** après une modification des modèles : `cd backend`, `venv\Scripts\activate`, `pip install pypdf`, `python tools/generer_mpd.py`.
 

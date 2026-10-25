@@ -112,27 +112,27 @@ application = get_wsgi_application()
 5. Cliquez sur le gros bouton vert **Reload VOTRE_NOM.pythonanywhere.com**.
 6. Test : ouvrez `https://VOTRE_NOM.pythonanywhere.com/api/disciplines/` → vous devez voir `[]`. Aucune configuration de fichiers statiques n'est nécessaire (photos et logo sont servis par l'application).
 
-## ÉTAPE 5 – Mettre le frontend sur Cloudflare Pages
-1. https://dash.cloudflare.com → **Workers & Pages** → **Create** → onglet **Pages** → **Connect to Git** (les intitulés peuvent légèrement changer).
-2. Autorisez GitHub, choisissez le dépôt `lycee-ambohitromby` → **Begin setup**.
-3. Réglages :
-   - *Project name* : `lycee-ambohitromby` (donne `lycee-ambohitromby.pages.dev`)
-   - *Production branch* : `main`
-   - *Framework preset* : `Vite` (ou *None*)
+## ÉTAPE 5 – Mettre le frontend sur Cloudflare
+Le projet contient déjà `frontend/wrangler.jsonc` (configuration Cloudflare) et `frontend/.env.production` (adresse de l'API). **Ouvrez `frontend/.env.production` et remplacez `tsiresy` par votre nom d'utilisateur PythonAnywhere** (une seule ligne : `VITE_API_URL=https://VOTRE_NOM.pythonanywhere.com`, sans `/` final), puis `git add .`, `git commit`, `git push`.
+
+1. https://dash.cloudflare.com → **Compute (Workers & Pages)** → **Create** → **Import a repository** (ou *Connect to Git*) → GitHub → dépôt `lycee-ambohitromby`.
+2. Réglages :
+   - *Project name* : `lycee-ambohitromby` (**identique** au champ `name` de `wrangler.jsonc`)
    - *Build command* : `npm run build`
-   - *Build output directory* : `dist`
+   - *Deploy command* : `npx wrangler deploy`
    - *Root directory* (Advanced) : `frontend`
-   - *Environment variables* → **Add** :
-     - `VITE_API_URL` = `https://VOTRE_NOM.pythonanywhere.com` (sans `/` final)
-     - `NODE_VERSION` = `20`
-4. **Save and Deploy**. Après 1 à 2 minutes, notez l'adresse `https://XXXX.pages.dev`.
+   - *Variables de **build*** : `NODE_VERSION` = `20` (et, si vous ne gardez pas `.env.production`, `VITE_API_URL` = `https://VOTRE_NOM.pythonanywhere.com`)
+3. **Save and Deploy**. L'adresse obtenue ressemble à `https://lycee-ambohitromby.VOTRE-COMPTE.workers.dev` (sans accent, sans point final).
+4. Contrôle : sur le site, **Ctrl+U** doit montrer `src="/assets/index-….js"` (et non `/src/main.jsx`).
+
+*Cloudflare Pages (ancienne interface) fonctionne aussi : Build output `dist`, Root directory `frontend`.*
 
 ## ÉTAPE 6 – Relier les deux (autoriser le frontend côté API)
 Console Bash PythonAnywhere :
 ```
 nano ~/lycee/backend/.env
 ```
-Mettez `CORS_ORIGIN=https://XXXX.pages.dev` (adresse exacte, sans `/` final ; plusieurs adresses séparées par des virgules). Enregistrez, puis onglet **Web** → **Reload**.
+Mettez `CORS_ORIGIN=https://lycee-ambohitromby.VOTRE-COMPTE.workers.dev` (adresse exacte, celle de l'étape 5 ; pour Cloudflare Pages : `https://XXXX.pages.dev`, sans `/` final ; plusieurs adresses séparées par des virgules). Enregistrez, puis onglet **Web** → **Reload**.
 
 ## ÉTAPE 7 – Tester
 Ouvrez `https://XXXX.pages.dev`, connectez-vous avec l'administrateur créé à l'étape 4.4. Testez : une classe, une inscription, un PDF, le bouton **À propos**.
@@ -167,16 +167,34 @@ bash ~/lycee/scripts/maj-pythonanywhere.sh
 |---|---|
 | Erreur CORS dans le navigateur, « Impossible de contacter le serveur » | `CORS_ORIGIN` ne correspond pas exactement à l'adresse `pages.dev` ; corrigez `.env` puis **Reload**. |
 | `Invalid HTTP_HOST header` / `DisallowedHost` | `ALLOWED_HOSTS` doit être `VOTRE_NOM.pythonanywhere.com`. |
-| Page blanche à `…/api/…` ou « Something went wrong » | Onglet **Web** → lien *Error log* ; souvent `.env` manquant, mauvais chemin dans le fichier WSGI ou virtualenv. |
+| « Something went wrong :-( » / *Unhandled Exception* | Lancez `bash ~/lycee/scripts/diagnostic-pythonanywhere.sh` : il indique la cause (`.env` manquant, virtualenv, paquets, WSGI) et affiche le journal d'erreurs. Voir aussi la section ci-dessous. |
 | `ImproperlyConfigured … SECRET_KEY` | Remplacez la valeur `SECRET_KEY` dans `.env` par la clé générée. |
 | 404 en actualisant une page (`/classes`) | Cloudflare Pages gère cela tout seul ; vérifiez que *Build output directory* = `dist` et *Root directory* = `frontend`. |
-| Le site appelle `localhost` | `VITE_API_URL` absent : ajoutez-le dans Cloudflare → *Settings* → *Environment variables*, puis **Retry deployment**. |
+| Le site appelle `localhost` / `127.0.0.1` | `VITE_API_URL` absent à la construction : vérifiez `frontend/.env.production` (ou la variable de build Cloudflare), poussez, puis **Retry build**. |
+| Message « Impossible de contacter le serveur (https://…) » | L'adresse entre parenthèses est celle que le site utilise : si elle est fausse → corrigez `.env.production` ; si elle est bonne → `CORS_ORIGIN` ne correspond pas exactement à l'adresse du site (puis **Reload**). |
+| Page blanche, `src="/src/main.jsx"` dans Ctrl+U | Le site n'a pas été construit : *Build command* = `npm run build` et *Root directory* = `frontend`. |
+| `git push` refusé | Faites d'abord `git pull` (des fichiers ont pu être créés sur GitHub). |
 | `pip` échoue | Vérifiez que le virtualenv est actif : `workon lycee-env`. |
 | Site lent ou « CPU limit » | Les 100 s/jour de la formule gratuite sont épuisées ; réessayez demain ou passez à l'offre payante. |
 | Application indisponible après un mois | Prolongation oubliée : onglet **Web**, bouton de prolongation, puis **Reload**. |
 | Photos absentes après un nouveau déploiement | Les photos sont dans `backend/media` (non versionné) ; elles restent sur PythonAnywhere. Ne supprimez pas ce dossier. |
 
+## « Something went wrong :-( » : les causes, dans l'ordre
+Ouvrez l'onglet **Web** → lien **Error log** : la **dernière ligne** donne la cause.
+
+| Dernière ligne du journal | Correction |
+|---|---|
+| `Fichier de configuration introuvable` ou `Error loading MySQLdb module` | `.env` manquant : `cd ~/lycee/backend`, `cp .env.production.example .env`, `nano .env` (voir étape 4.3). |
+| `mysqlclient n'est pas installé` | Dans `.env`, mettez `DB_ENGINE=sqlite`. |
+| `définissez une SECRET_KEY` | Remplacez `SECRET_KEY` par une clé générée (`python -c "import secrets;print(secrets.token_urlsafe(50))"`). |
+| `ModuleNotFoundError: No module named 'django'` (ou `dotenv`, `rest_framework`…) | Le *Virtualenv* de l'onglet Web est vide ou faux : `/home/VOTRE_NOM/.virtualenvs/lycee-env`. Puis `workon lycee-env` et `pip install -r requirements-pythonanywhere.txt`. |
+| `ModuleNotFoundError: No module named 'config'` | Chemin faux dans le fichier WSGI : il doit être `/home/VOTRE_NOM/lycee/backend`. |
+| `SyntaxError` / `IndentationError` dans le fichier WSGI | Recollez exactement le contenu du guide (indentation de 4 espaces, aucun reste de l'ancien contenu). |
+| `no such table` | Lancez `python manage.py migrate` (virtualenv actif). |
+| Aucune erreur, mais ancienne page | Cliquez sur **Reload** (bouton vert) puis actualisez avec Ctrl+F5. |
+
 ## Alternatives
+- **Mode nuit** : bouton lune/soleil en haut ; le choix est mémorisé, même sur l'écran de connexion.
 - **Netlify** pour le frontend : `netlify.toml` est déjà fourni (ajoutez la variable `VITE_API_URL` dans *Site settings → Environment variables*). Son offre gratuite est limitée par un système de crédits.
 - **Vercel** : l'offre gratuite *Hobby* est réservée à un usage non commercial.
 - **MySQL gratuit** : possible uniquement sur d'autres hébergeurs (ou comptes PythonAnywhere créés avant janvier 2026) ; configurez alors `DB_ENGINE=mysql` et les variables `DB_*` du fichier `.env`.

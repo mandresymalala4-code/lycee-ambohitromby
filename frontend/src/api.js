@@ -37,7 +37,7 @@ api.interceptors.response.use((r) => r, async (error) => {
 export const media = (p) => (p ? (p.startsWith('http') ? p : `${API}${p}`) : null);
 
 export function parseErr(e) {
-  if (!e?.response) return { message: 'Impossible de contacter le serveur. Vérifiez que le backend est démarré.', champs: {}, status: 0 };
+  if (!e?.response) return { message: `Impossible de contacter le serveur (${API}). Vérifiez que le backend est démarré et que cette adresse est autorisée (CORS_ORIGIN).`, champs: {}, status: 0 };
   const d = e.response.data || {};
   return { message: d.message || 'Une erreur est survenue.', champs: d.champs || {}, status: e.response.status, code: d.code };
 }

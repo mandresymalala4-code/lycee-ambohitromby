@@ -24,3 +24,7 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Cloudflare / wrangler
+.wrangler/
+.dev.vars
